@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+            color: #fff;
+            margin: 0;
+            flex-direction: column;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(10, 20px);
+            grid-template-rows: repeat(20, 20px);
+            gap: 1px;
+            background-color: #333;
+        }
+
+        .cell {
+            width: 20px;
+            height: 20px;
+            background-color: #222;
+        }
+
+        .cell.active {
+            background-color: #ff5722;
+        }
+
+        .cell.fixed {
+            background-color: #4caf50;
+        }
+
+        #score {
+            margin: 10px;
+            font-size: 18px;
+        }
+
+        #restart-btn {
+            padding: 10px;
+            background-color: #ff5722;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;
+            margin-top: 20px;
+        }
+
+        #restart-btn:hover {
+            background-color: #e64a19;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">Score: 0</div>
+        <div id="grid"></div>
+        <button id="restart-btn">Restart Game</button>
+    </div>
+
+    <script>
+        const grid = document.getElementById('grid');
+        const scoreDisplay = document.getElementById('score');
+        const restartButton = document.getElementById('restart-btn');
+        const ROWS = 20;
+        const COLS = 10;
+
+        // Create the grid
+        const cells = [];
+        for (let i = 0; i < ROWS * COLS; i++) {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            grid.appendChild(cell);
+            cells.push(cell);
+        }
+
+        // Tetromino shapes
+        const tetrominoes = [
+            [1, COLS + 1, COLS * 2 + 1, 2], // L-shape
+            [0, 1, COLS, COLS + 1],        // Square
+            [1, COLS, COLS + 1, COLS + 2], // T-shape
+            [0, 1, COLS + 1, COLS + 2],    // Z-shape
+            [1, COLS + 1, COLS * 2 + 1, COLS * 3 + 1] // Line
+        ];
+
+        let currentTetromino = [];
+        let currentPosition = 4;
+        let currentRotation = 0;
+        let currentShapeIndex = 0;
+        let score = 0;
+        let gameActive = true;
+
+        // Spawn a new tetromino
+        function spawnTetromino() {
+            currentShapeIndex = Math.floor(Math.random() * tetrominoes.length);
+            currentTetromino = tetrominoes[currentShapeIndex];
+            currentPosition = 4;
+        }
+
+        // Draw the tetromino
+        function draw() {
+            currentTetromino.forEach(index => {
+                cells[currentPosition + index].classList.add('active');
+            });
+        }
+
+        // Undraw the tetromino
+        function undraw() {
+            currentTetromino.forEach(index => {
+                cells[currentPosition + index].classList.remove('active');
+            });
+        }
+
+        // Check for collision
+        function checkCollision(offset) {
+            return currentTetromino.some(index => {
+                const nextPosition = currentPosition + index + offset;
+                return (
+                    nextPosition >= ROWS * COLS || // Hits the bottom
+                    (nextPosition % COLS === 0 && offset === 1) || // Hits the right edge
+                    (nextPosition % COLS === COLS - 1 && offset === -1) || // Hits the left edge
+                    cells[nextPosition]?.classList.contains('fixed') // Hits a fixed block
+                );
+            });
+        }
+
+        // Fix the tetromino in place
+        function fixTetromino() {
+            currentTetromino.forEach(index => {
+                cells[currentPosition + index].classList.add('fixed');
+                cells[currentPosition + index].classList.remove('active');
+            });
+
+            // Add 50 points for every fixed tetromino
+            score += 50;
+            scoreDisplay.textContent = 'Score: ' + score;
+        }
+
+        // Clear complete rows
+        function clearRows() {
+            for (let row = 0; row < ROWS; row++) {
+                const start = row * COLS;
+                const end = start + COLS;
+                const rowCells = cells.slice(start, end);
+
+                if (rowCells.every(cell => cell.classList.contains('fixed'))) {
+                    score += 10;
+                    scoreDisplay.textContent = 'Score: ' + score;
+
+                    // Remove fixed class from the row
+                    rowCells.forEach(cell => cell.classList.remove('fixed'));
+
+                    // Move everything above down
+                    for (let i = start - 1; i >= 0; i--) {
+                        if (cells[i].classList.contains('fixed')) {
+                            cells[i].classList.remove('fixed');
+                            cells[i + COLS].classList.add('fixed');
+                        }
+                    }
+                }
+            }
+        }
+
+        // Move the tetromino down
+        function moveDown() {
+            if (!gameActive) return;
+
+            undraw();
+            if (!checkCollision(COLS)) {
+                currentPosition += COLS;
+            } else {
+                fixTetromino();
+                clearRows();
+                spawnTetromino();
+                if (checkCollision(0)) {
+                    gameActive = false;
+                    alert('Game Over! Final Score: ' + score);
+                    restartButton.style.display = 'block'; // Show the restart button
+                }
+            }
+            draw();
+        }
+
+        // Move the tetromino left
+        function moveLeft() {
+            if (!checkCollision(-1)) {
+                undraw();
+                currentPosition--;
+                draw();
+            }
+        }
+
+        // Move the tetromino right
+        function moveRight() {
+            if (!checkCollision(1)) {
+                undraw();
+                currentPosition++;
+                draw();
+            }
+        }
+
+        // Rotate the tetromino
+        function rotate() {
+            const previousRotation = currentTetromino;
+            const shape = tetrominoes[currentShapeIndex];
+            currentTetromino = shape.map(index => {
+                const x = index % COLS;
+                const y = Math.floor(index / COLS);
+                return COLS * x + (COLS - 1 - y); // Rotation formula
+            });
+
+            if (checkCollision(0)) {
+                currentTetromino = previousRotation; // Revert if collision
+            }
+        }
+
+        // Key controls
+        document.addEventListener('keydown', event => {
+            if (!gameActive) return;
+            if (event.key === 'ArrowLeft') moveLeft();
+            if (event.key === 'ArrowRight') moveRight();
+            if (event.key === 'ArrowDown') moveDown();
+            if (event.key === 'ArrowUp') rotate();
+        });
+
+        // Restart the game
+        function restartGame() {
+            score = 0;
+            scoreDisplay.textContent = 'Score: ' + score;
+            cells.forEach(cell => {
+                cell.classList.remove('fixed', 'active');
+            });
+            gameActive = true;
+            restartButton.style.display = 'none'; // Hide the restart button
+            spawnTetromino();
+            draw();
+            setInterval(moveDown, 500);
+        }
+
+        // Start the game
+        restartButton.addEventListener('click', restartGame);
+        spawnTetromino();
+        draw();
+        setInterval(moveDown, 500);
+    </script>
+</body>
+</html>
